@@ -1,204 +1,37 @@
 package com.twitter.finagle.zipkin.core
 
-import com.google.common.io.BaseEncoding
-import com.twitter.conversions.storage._
 import com.twitter.conversions.time._
-import com.twitter.finagle.builder.ClientBuilder
-import com.twitter.finagle.stats.{ClientStatsReceiver, NullStatsReceiver, StatsReceiver}
-import com.twitter.finagle.thrift.{Protocols, ThriftClientFramedCodec, thrift}
+import com.twitter.finagle.stats.StatsReceiver
+import com.twitter.finagle.thrift.thrift
+import com.twitter.finagle.tracing
 import com.twitter.finagle.tracing._
 import com.twitter.finagle.util.DefaultTimer
-import com.twitter.finagle.zipkin.thriftscala._
-import com.twitter.finagle.{Service, SimpleFilter, tracing}
-import com.twitter.scrooge.TReusableMemoryTransport
 import com.twitter.util._
-import java.io.CharArrayWriter
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
-import java.util.concurrent.{ArrayBlockingQueue, TimeoutException}
-import org.apache.thrift.TByteArrayOutputStream
-import scala.collection.mutable.{ArrayBuffer, HashMap, SynchronizedMap}
 import scala.language.reflectiveCalls
-
-object RawZipkinTracer {
-  private[this] def newClient(
-    scribeHost: String,
-    scribePort: Int
-  ): Scribe.FutureIface = {
-    val transport = ClientBuilder()
-      .name("zipkin-tracer")
-      .hosts(new InetSocketAddress(scribeHost, scribePort))
-      .codec(ThriftClientFramedCodec())
-      .reportTo(ClientStatsReceiver)
-      .hostConnectionLimit(5)
-      // using an arbitrary, but bounded number of waiters to avoid memory leaks
-      .hostConnectionMaxWaiters(250)
-      // somewhat arbitrary, but bounded timeouts
-      .timeout(1.second)
-      .daemon(true)
-      .build()
-
-    new Scribe.FinagledClient(
-      new TracelessFilter andThen transport,
-      Protocols.binaryFactory())
-  }
-
-  // to make sure we only create one instance of the tracer per host and port
-  private[this] val map =
-    new HashMap[String, RawZipkinTracer] with SynchronizedMap[String, RawZipkinTracer]
-
-  /**
-   * @param scribeHost Host to send trace data to
-   * @param scribePort Port to send trace data to
-   * @param statsReceiver Where to log information about tracing success/failures
-   */
-  def apply(
-    scribeHost: String = "localhost",
-    scribePort: Int = 1463,
-    statsReceiver: StatsReceiver = NullStatsReceiver,
-    timer: Timer = DefaultTimer.twitter
-  ): RawZipkinTracer = synchronized {
-    map.getOrElseUpdate(scribeHost + ":" + scribePort, apply(newClient(scribeHost, scribePort), statsReceiver, timer))
-  }
-
-  def apply(client: Scribe.FutureIface, statsReceiver: StatsReceiver, timer: Timer): RawZipkinTracer =
-    new RawZipkinTracer(client, statsReceiver.scope("zipkin"), timer)
-
-  // Try to flush the tracers when we shut
-  // down. We give it 100ms.
-  Runtime.getRuntime().addShutdownHook(new Thread {
-    setName("RawZipkinTracer-ShutdownHook")
-    override def run() {
-      val tracers = RawZipkinTracer.synchronized(map.values.toSeq)
-      val joined = Future.join(tracers map(_.flush()))
-      try {
-        Await.result(joined, 100.milliseconds)
-      } catch {
-        case _: TimeoutException =>
-          System.err.println("Failed to flush all traces before quitting")
-      }
-    }
-  })
-}
 
 /**
  * Receives the Finagle generated traces and sends them off to Zipkin via scribe.
- * @param client The scribe client used to send traces to scribe
  * @param statsReceiver We generate stats to keep track of traces sent, failures and so on
  * @param timer A Timer used for timing out spans in the [[DeadlineSpanMap]]
- * @param poolSize The number of Memory transports to make available for serializing Spans
- * @param initialBufferSize Initial size of each transport
- * @param maxBufferSize Max size to keep around. Transports will grow as needed, but will revert back to `initialBufferSize` when reset if
- * they grow beyond `maxBufferSize`
  */
-private[thrift] class RawZipkinTracer(
-  client: Scribe.FutureIface,
+abstract private[zipkin] class RawZipkinTracer(
   statsReceiver: StatsReceiver,
-  timer: Timer = DefaultTimer.twitter,
-  poolSize: Int = 10,
-  initialBufferSize: StorageUnit = 512.bytes,
-  maxBufferSize: StorageUnit = 1.megabyte
+  timer: Timer = DefaultTimer.twitter
 ) extends Tracer {
-  private[this] val TraceCategory = "zipkin" // scribe category
-
   private[this] val ErrorAnnotation = "%s: %s" // annotation: errorMessage
 
   // this sends off spans after the deadline is hit, no matter if it ended naturally or not.
   private[this] val spanMap: DeadlineSpanMap =
-    new DeadlineSpanMap(logSpans(_), 120.seconds, statsReceiver, timer)
+    new DeadlineSpanMap(sendSpans, 120.seconds, statsReceiver, timer)
 
-  private[this] val scopedReceiver = statsReceiver.scope("log_span")
-  private[this] val okCounter = scopedReceiver.counter("ok")
-  private[this] val tryLaterCounter = scopedReceiver.counter("try_later")
-  private[this] val errorReceiver = scopedReceiver.scope("error")
-
-  protected[thrift] def flush() = spanMap.flush()
+  protected[core] def flush() = spanMap.flush()
 
   /**
    * Always sample the request.
    */
   def sampleTrace(traceId: TraceId): Option[Boolean] = Some(true)
-
-  private[this] val initialSizeInBytes = initialBufferSize.inBytes.toInt
-  private[this] val maxSizeInBytes = maxBufferSize.inBytes.toInt
-
-  /**
-   * A wrapper around the TReusableMemoryTransport from Scrooge that
-   * also resets the size of the underlying buffer if it grows larger
-   * than `maxBufferSize`
-   */
-  private[this] val encoder = BaseEncoding.base64()
-  private class ReusableTransport {
-    private[this] val baos = new TByteArrayOutputStream(initialSizeInBytes) {
-      private[this] val writer = new CharArrayWriter(initialSizeInBytes) {
-        override def reset(): Unit = {
-          super.reset()
-          if (buf.length > maxSizeInBytes) {
-            buf = new Array[Char](initialSizeInBytes)
-          }
-        }
-      }
-      @volatile private[this] var outStream = encoder.encodingStream(writer)
-
-      override def reset(): Unit = {
-        writer.reset()
-        outStream = encoder.encodingStream(writer)
-        super.reset()
-      }
-
-      override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
-        outStream.write(bytes, off, len)
-      }
-
-      def toBase64Line(): String = {
-        outStream.close()
-        writer.write('\n')
-        writer.toString()
-      }
-    }
-
-    private[this] val transport = new TReusableMemoryTransport(baos)
-    val protocol = Protocols.binaryFactory().getProtocol(transport)
-
-    def reset() = transport.reset()
-    def toBase64Line(): String = baos.toBase64Line()
-  }
-
-  private[this] val bufferPool = new ArrayBlockingQueue[ReusableTransport](poolSize)
-  (0 until poolSize) foreach { _ => bufferPool.add(new ReusableTransport) }
-
-  /**
-   * Serialize the span, base64 encode and shove it all in a list.
-   */
-  private[this] def createLogEntries(spans: Seq[Span]): Seq[LogEntry] = {
-    val entries = new ArrayBuffer[LogEntry](spans.size)
-
-    spans foreach { span =>
-      val transport = bufferPool.take()
-      try {
-        span.toThrift.write(transport.protocol)
-        entries.append(LogEntry(category = TraceCategory, message = transport.toBase64Line()))
-      } catch {
-        case NonFatal(e) => errorReceiver.counter(e.getClass.getName).incr()
-      } finally {
-        transport.reset()
-        bufferPool.add(transport)
-      }
-    }
-
-    entries
-  }
-
-  /**
-   * Log the span data via Scribe.
-   */
-  def logSpans(spans: Seq[Span]): Future[Unit] = {
-    client.log(createLogEntries(spans)).respond {
-      case Return(ResultCode.Ok) => okCounter.incr()
-      case Return(ResultCode.TryLater) => tryLaterCounter.incr()
-      case Throw(e) => errorReceiver.counter(e.getClass.getName).incr()
-    }.unit
-  }
 
   /**
    * Mutate the Span with whatever new info we have.
@@ -311,15 +144,6 @@ private[thrift] class RawZipkinTracer(
       span.addAnnotation(ZipkinAnnotation(record.timestamp, value, span.endpoint))
     }
   }
-}
 
-/**
- * Makes sure we don't trace the Scribe logging.
- */
-private class TracelessFilter[Req, Rep] extends SimpleFilter[Req, Rep] {
-  def apply(request: Req, service: Service[Req, Rep]) = {
-    Trace.letClear {
-      service(request)
-    }
-  }
+  def sendSpans(spans: Seq[Span]): Future[Unit]
 }
