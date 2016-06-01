@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
   * It takes care of flushing tracers on shutdown.
   * @tparam T Any subtype of [[RawZipkinTracer]] to be stored
   */
-class TracerCache[T <: RawZipkinTracer] {
+private[zipkin] class TracerCache[T <: RawZipkinTracer] {
   // to make sure we only create one instance of the tracer per host and port
   private[this] val map = new ConcurrentHashMap[String, T].asScala
 

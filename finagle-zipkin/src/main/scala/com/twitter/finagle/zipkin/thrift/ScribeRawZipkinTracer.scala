@@ -20,13 +20,13 @@ import org.apache.thrift.TByteArrayOutputStream
 import scala.collection.mutable.ArrayBuffer
 import scala.language.reflectiveCalls
 
-object ScribeRawZipkinTracer {
+private[thrift] object ScribeRawZipkinTracer {
   val tracerCache = new TracerCache[ScribeRawZipkinTracer]
 
   private[this] def newClient(
-                               scribeHost: String,
-                               scribePort: Int
-                             ): Scribe.FutureIface = {
+    scribeHost: String,
+    scribePort: Int
+  ): Scribe.FutureIface = {
     val transport = ClientBuilder()
       .name("zipkin-tracer")
       .hosts(new InetSocketAddress(scribeHost, scribePort))
@@ -74,7 +74,7 @@ object ScribeRawZipkinTracer {
   * @param maxBufferSize Max size to keep around. Transports will grow as needed, but will revert back to `initialBufferSize` when reset if
   * they grow beyond `maxBufferSize`
   */
-class ScribeRawZipkinTracer(
+private[thrift] class ScribeRawZipkinTracer(
   client: Scribe.FutureIface,
   statsReceiver: StatsReceiver,
   timer: Timer = DefaultTimer.twitter,
