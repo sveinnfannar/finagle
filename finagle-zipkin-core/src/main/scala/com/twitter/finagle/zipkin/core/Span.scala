@@ -1,4 +1,4 @@
-package com.twitter.finagle.zipkin.thrift
+package com.twitter.finagle.zipkin.core
 
 /**
  * The `Span` is the core datastructure in RPC tracing. It denotes the

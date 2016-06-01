@@ -1,4 +1,4 @@
-package com.twitter.finagle.zipkin.thrift
+package com.twitter.finagle.zipkin.core
 
 import com.google.common.io.BaseEncoding
 import com.twitter.conversions.storage._
