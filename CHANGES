@@ -12,6 +12,9 @@ Deprecations
   * finagle-http: Deprecate channelBufferUsageTracker in favor of maxRequestSize.
     ``RB_ID=831233``
 
+  * finagle-zipkin: Deprecate `ZipkinTracer` in favor of `ScribeZipkinTracer`.
+    ``RB_ID=??``
+
 Breaking API Changes
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -54,8 +57,8 @@ Breaking API Changes
   * finagle-memcached: `c.t.f.memcached.Client` now uses `c.t.bijection.Bijection`
     instead of `c.t.u.Bijection`. ``RB_ID=834383``
 
-  * finagle-zipkin: Moved case classes `Span`, `ZipkinAnnotation`,
-    `BinaryAnnotation`, `Endpoint` and `Sampler` to finagle-zipkin-core.
+  * finagle-zipkin: Moved case classes and companion objects `Span`, `ZipkinAnnotation`,
+    `BinaryAnnotation`, `Endpoint`, `Sampler` and `SamplingTracer` to finagle-zipkin-core.
     ``RB_ID=??``
 
   * Builds are now only for Java 8 and Scala 2.11. See the

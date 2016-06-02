@@ -56,16 +56,22 @@ object ZipkinTracer {
 }
 
 /**
- * SamplingTracer with a default constructor for the service loader to create a Scribe backed tracer
+ * Receives the Finagle generated traces and sends a sample of them off to Zipkin via Scribe
  */
-class SamplingTracer extends core.SamplingTracer(
-  ScribeRawZipkinTracer(Host().getHostName, Host().getPort,
+class ScribeZipkinTracer(tracer: ScribeRawZipkinTracer, sampleRate: Float)
+  extends core.SamplingTracer(tracer, sampleRate) {
+  /**
+   * Default constructor for the service loader
+   */
+  def this() = this(ScribeRawZipkinTracer(Host().getHostName, Host().getPort,
     DefaultStatsReceiver.scope("zipkin")), sampleRateFlag())
+}
 
 /**
- * Receives the Finagle generated traces and sends them off to Zipkin via Scribe
+ * Receives the Finagle generated traces and sends a sample of them off to Zipkin via Scribe
  * @param tracer underlying tracer
  * @param sampleRate ratio of requests to trace
  */
+@deprecated("Use ScribeZipkinTracer instead", "6.36.0")
 class ZipkinTracer(tracer: ScribeRawZipkinTracer, sampleRate: Float)
   extends core.SamplingTracer(tracer, sampleRate)
