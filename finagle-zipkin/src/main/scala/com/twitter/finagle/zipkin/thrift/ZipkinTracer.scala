@@ -62,5 +62,10 @@ class SamplingTracer extends core.SamplingTracer(
   ScribeRawZipkinTracer(Host().getHostName, Host().getPort,
     DefaultStatsReceiver.scope("zipkin")), sampleRateFlag())
 
-class ZipkinTracer(tracer: ScribeRawZipkinTracer, initialRate: Float)
-  extends core.SamplingTracer(tracer, initialRate)
+/**
+ * Receives the Finagle generated traces and sends them off to Zipkin via Scribe
+ * @param tracer underlying tracer
+ * @param sampleRate ratio of requests to trace
+ */
+class ZipkinTracer(tracer: ScribeRawZipkinTracer, sampleRate: Float)
+  extends core.SamplingTracer(tracer, sampleRate)

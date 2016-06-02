@@ -12,7 +12,7 @@ import java.nio.ByteBuffer
 import scala.language.reflectiveCalls
 
 /**
- * Receives the Finagle generated traces and sends them off to Zipkin via scribe.
+ * Receives the Finagle generated traces and sends them off to Zipkin
  * @param statsReceiver We generate stats to keep track of traces sent, failures and so on
  * @param timer A Timer used for timing out spans in the [[DeadlineSpanMap]]
  */
