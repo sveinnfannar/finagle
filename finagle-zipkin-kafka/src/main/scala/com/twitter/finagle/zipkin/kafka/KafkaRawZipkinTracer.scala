@@ -30,7 +30,8 @@ class KafkaRawZipkinTracer(
   statsReceiver: StatsReceiver,
   timer: Timer = DefaultTimer.twitter
 ) extends RawZipkinTracer(statsReceiver, timer) {
-  // XXX(sveinnfannar): Override
+  // XXX(sveinnfannar): Should we override RawZipkinTracer#flush to make sure
+  //                    the kafka producer sends all queued messages
 
   private[this] val okCounter = statsReceiver.scope("log_span").counter("ok")
   private[this] val errorReceiver = statsReceiver.scope("log_span").scope("error")
