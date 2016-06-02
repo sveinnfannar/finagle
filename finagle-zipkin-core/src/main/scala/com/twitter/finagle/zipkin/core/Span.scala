@@ -36,7 +36,7 @@ case class Span(
   /**
    * @return a pretty string for this span ID.
    */
-  def idString = {
+  def idString: String = {
     val spanString = traceId.spanId.toString
     val parentSpanString = traceId._parentId map (_.toString)
 

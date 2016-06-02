@@ -26,7 +26,7 @@ abstract private[zipkin] class RawZipkinTracer(
   private[this] val spanMap: DeadlineSpanMap =
     new DeadlineSpanMap(sendSpans, 120.seconds, statsReceiver, timer)
 
-  protected[core] def flush() = spanMap.flush()
+  protected[core] def flush(): Future[Unit] = spanMap.flush()
 
   /**
    * Always sample the request.
@@ -37,14 +37,14 @@ abstract private[zipkin] class RawZipkinTracer(
    * Mutate the Span with whatever new info we have.
    * If we see an "end" annotation we remove the span and send it off.
    */
-  protected def mutate(traceId: TraceId)(f: MutableSpan => Unit) {
+  protected def mutate(traceId: TraceId)(f: MutableSpan => Unit): Unit = {
     spanMap.update(traceId)(f)
   }
 
   private[this] val TrueBB: ByteBuffer = ByteBuffer.wrap(Array[Byte](1))
   private[this] val FalseBB: ByteBuffer = ByteBuffer.wrap(Array[Byte](0))
 
-  def record(record: Record) {
+  def record(record: Record): Unit = {
     record.annotation match {
       case tracing.Annotation.WireSend =>
         annotate(record, thrift.Constants.WIRE_SEND)
@@ -121,7 +121,7 @@ abstract private[zipkin] class RawZipkinTracer(
    * Sets the endpoint in the span for any future annotations. Also
    * sets the endpoint in any previous annotations that lack one.
    */
-  protected def setEndpoint(record: Record, ia: InetSocketAddress) {
+  protected def setEndpoint(record: Record, ia: InetSocketAddress): Unit = {
     spanMap.update(record.traceId)(_.setEndpoint(Endpoint.fromSocketAddress(ia).boundEndpoint))
   }
 
@@ -130,7 +130,7 @@ abstract private[zipkin] class RawZipkinTracer(
     key: String,
     value: ByteBuffer,
     annotationType: thrift.AnnotationType
-  ) {
+  ): Unit = {
     spanMap.update(record.traceId) { span =>
       span.addBinaryAnnotation(BinaryAnnotation(key, value, annotationType, span.endpoint))
     }
@@ -139,7 +139,7 @@ abstract private[zipkin] class RawZipkinTracer(
   /**
    * Add this record as a time based annotation.
    */
-  protected def annotate(record: Record, value: String) {
+  protected def annotate(record: Record, value: String): Unit = {
     spanMap.update(record.traceId) { span =>
       span.addAnnotation(ZipkinAnnotation(record.timestamp, value, span.endpoint))
     }
