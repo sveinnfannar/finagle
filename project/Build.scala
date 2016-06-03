@@ -312,7 +312,7 @@ object Finagle extends Build {
       sharedSettings
   ).settings(
     name := "finagle-zipkin-core",
-    libraryDependencies ++= Seq(util("codec"), util("events")) ++ scroogeLibs,
+    libraryDependencies ++= Seq(util("codec"), util("events"), util("core")) ++ scroogeLibs,
     libraryDependencies ++= jacksonLibs
   ).dependsOn(finagleCore, finagleThrift)
 
