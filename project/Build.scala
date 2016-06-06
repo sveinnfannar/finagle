@@ -43,7 +43,7 @@ object Finagle extends Build {
   )
   val scroogeLibs = thriftLibs ++ Seq(
     "com.twitter" %% "scrooge-core" % scroogeVersion)
-  val kafkaLib =  "org.apache.kafka" % "kafka-clients" % "0.9.0.1"
+  val kafkaLib =  "org.apache.kafka" % "kafka-clients" % "0.8.2.2"
 
   def util(which: String) =
     "com.twitter" %% ("util-"+which) % utilVersion excludeAll(
