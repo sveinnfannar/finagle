@@ -4,8 +4,8 @@ import java.util.Properties
 
 import com.twitter.finagle.stats.DefaultStatsReceiver
 import com.twitter.finagle.zipkin.core.SamplingTracer
-import com.twitter.finagle.zipkin.{initialSampleRate => sampleRateFlag}
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer}
+import com.twitter.finagle.zipkin.{initialSampleRate => sampleRateFlag, kafkaBootstrapServers => bootstrapServersFlag}
 
 object KafkaZipkinTracer {
   /**
@@ -24,8 +24,8 @@ object KafkaZipkinTracer {
 
 class KafkaZipkinTracer extends SamplingTracer(
   new KafkaRawZipkinTracer(
-    producer = KafkaZipkinTracer.newProducer("localhost:9092"), // TODO: Get with flag
-    topic = "zipkin", // TODO: Get with flag
+    producer = KafkaZipkinTracer.newProducer(bootstrapServersFlag()),
+    topic = "zipkin", // parameterize
     statsReceiver = DefaultStatsReceiver.scope("zipkin")
   ),
   initialSampleRate = sampleRateFlag()
