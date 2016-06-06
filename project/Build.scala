@@ -598,7 +598,8 @@ object Finagle extends Build {
     finagleOstrich4,
     finagleRedis,
     finagleStats,
-    finagleThrift)
+    finagleThrift,
+    finagleZipkinKafka)
 
   lazy val finagleBenchmarkThrift = Project(
     id = "finagle-benchmark-thrift",

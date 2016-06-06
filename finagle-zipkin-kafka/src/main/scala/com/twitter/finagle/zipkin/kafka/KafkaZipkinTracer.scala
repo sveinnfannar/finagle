@@ -13,11 +13,15 @@ object KafkaZipkinTracer {
     */
   private[kafka] def newProducer(kafkaBootstrapServers: String): Producer[Array[Byte], Array[Byte]] = {
     val props: Properties = new Properties
-    props.put("bootstrap.servers", kafkaBootstrapServers)
-    props.put("metadata.broker.list", kafkaBootstrapServers) // TODO: Is this needed?
-    props.put("serializer.class", "kafka.serializer.DefaultEncoder")
-    props.put("producer.type", "async")
-    props.put("request.required.acks", "1")
+    props.put("bootstrap.servers", kafkaBootstrapServers) // Initial brokers to connect to, rest of the cluster will be discovered
+    props.put("key.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer")
+    props.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer")
+    props.put("acks", "1") // Ack after immediately writing to the leader
+//    props.put("buffer.memory", maxBufferSize.inBytes: java.lang.Long)
+    props.put("block.on.buffer.full", false: java.lang.Boolean) // Throw errors when buffer is full
+    //    props.put("max.block.ms", 0: java.lang.Integer) // Throw errors when buffer is full
+    props.put("retries", 0: java.lang.Integer)
+//    props.put("request.timeout.ms", requestTimeout.inMilliseconds.toInt: java.lang.Integer)
     new KafkaProducer[Array[Byte], Array[Byte]](props)
   }
 }
