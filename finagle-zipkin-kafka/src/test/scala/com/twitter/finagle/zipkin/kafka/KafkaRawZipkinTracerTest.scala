@@ -127,7 +127,6 @@ final class TestProducerException extends Exception
 private[this] class TestProducer extends ZipkinProducer {
   var messages: Seq[ZipkinProducerRecord] = Seq.empty
   override def partitionsFor(topic: String): util.List[PartitionInfo] = ???
-  override def flush(): Unit = ???
   override def metrics(): util.Map[MetricName, _ <: Metric] = ???
   override def send(record: ZipkinProducerRecord): JFuture[RecordMetadata] = ???
   override def send(record: ZipkinProducerRecord, callback: Callback): JFuture[RecordMetadata] = {
@@ -136,6 +135,5 @@ private[this] class TestProducer extends ZipkinProducer {
     null
   }
   override def close(): Unit = ???
-  override def close(timeout: Long, unit: TimeUnit): Unit = ???
 }
 
